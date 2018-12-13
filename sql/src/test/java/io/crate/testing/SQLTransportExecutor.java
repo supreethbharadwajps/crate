@@ -85,6 +85,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Random;
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
@@ -219,15 +220,22 @@ public class SQLTransportExecutor {
     public static ActionFuture<SQLResponse> execute(String stmt,
                                                     @Nullable Object[] args,
                                                     Session session) {
-        final AdapterActionFuture<SQLResponse, SQLResponse> actionFuture = new PlainActionFuture<>();
-        execute(stmt, args, actionFuture, session);
+        UUID jobId = UUID.randomUUID();
+        final AdapterActionFuture<SQLResponse, SQLResponse> actionFuture = new PlainActionFuture() {
+            @Override
+            public String toString() {
+                return "JobID=" + jobId;
+            }
+        };
+        execute(stmt, args, actionFuture, session, jobId);
         return actionFuture;
     }
 
     private static void execute(String stmt,
                                 @Nullable Object[] args,
                                 ActionListener<SQLResponse> listener,
-                                Session session) {
+                                Session session,
+                                @Nullable UUID jobId) {
         try {
             session.parse(UNNAMED, stmt, Collections.emptyList());
             List<Object> argsList = args == null ? Collections.emptyList() : Arrays.asList(args);
@@ -240,7 +248,7 @@ public class SQLTransportExecutor {
                 ResultReceiver resultReceiver = new ResultSetReceiver(listener, session.sessionContext(), outputFields);
                 session.execute(UNNAMED, 0, resultReceiver);
             }
-            session.sync();
+            session.sync(jobId);
         } catch (Throwable t) {
             listener.onFailure(SQLExceptions.createSQLActionException(t, session.sessionContext()));
         }

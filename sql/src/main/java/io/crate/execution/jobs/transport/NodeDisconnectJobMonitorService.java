@@ -25,13 +25,13 @@ package io.crate.execution.jobs.transport;
 import io.crate.execution.jobs.TasksService;
 import io.crate.execution.jobs.kill.KillJobsRequest;
 import io.crate.execution.jobs.kill.TransportKillJobsNodeAction;
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Singleton;
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.transport.TransportConnectionListener;
 import org.elasticsearch.transport.TransportService;
@@ -85,6 +85,7 @@ public class NodeDisconnectJobMonitorService extends AbstractLifecycleComponent 
 
     @Override
     public void onNodeDisconnected(final DiscoveryNode node) {
+        LOGGER.info("Node disconnected. Cancelling affected jobs. {}", node);
         killJobsCoordinatedBy(node);
         broadcastKillToParticipatingNodes(node);
 
@@ -118,7 +119,7 @@ public class NodeDisconnectJobMonitorService extends AbstractLifecycleComponent 
         if (LOGGER.isDebugEnabled()) {
             LOGGER.debug(
                 "Broadcasting kill for {} jobs because they involved disconnected node={}",
-                affectedJobs.size(),
+                affectedJobs,
                 deadNode.getId());
         }
         List<String> excludedNodeIds = Collections.singletonList(deadNode.getId());
@@ -129,7 +130,7 @@ public class NodeDisconnectJobMonitorService extends AbstractLifecycleComponent 
 
             @Override
             public void onFailure(Exception e) {
-                LOGGER.warn("failed to send kill request to nodes");
+                LOGGER.warn("Failed to send kill request to nodes", e);
             }
         }, excludedNodeIds);
     }

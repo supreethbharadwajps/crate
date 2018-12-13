@@ -54,10 +54,10 @@ import io.crate.protocols.postgres.SimplePortal;
 import io.crate.sql.parser.SqlParser;
 import io.crate.sql.tree.Statement;
 import io.crate.types.DataType;
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.Randomness;
-import org.apache.logging.log4j.LogManager;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -375,7 +375,7 @@ public class Session implements AutoCloseable {
 
         AnalyzedStatement analyzedStatement = portal.getLastAnalyzedStatement();
         if (analyzedStatement instanceof AnalyzedBegin) {
-            portal.sync(planner, jobsLogs);
+            portal.sync(planner, jobsLogs, null);
             clearState();
         } else if (analyzedStatement instanceof DeallocateAnalyzedStatement) {
             String stmtToDeallocate = ((DeallocateAnalyzedStatement) analyzedStatement).preparedStmtName();
@@ -387,7 +387,7 @@ public class Session implements AutoCloseable {
                 }
                 preparedStatements.clear();
             }
-            portal.sync(planner, jobsLogs);
+            portal.sync(planner, jobsLogs, null);
         } else {
             // delay execution to be able to bundle bulk operations
             pendingExecutions.add(portal);
@@ -395,6 +395,10 @@ public class Session implements AutoCloseable {
     }
 
     public CompletableFuture<?> sync() {
+        return sync(null);
+    }
+
+    public CompletableFuture<?> sync(@Nullable UUID jobId) {
         switch (pendingExecutions.size()) {
             case 0:
                 LOGGER.debug("method=sync pendingExecutions=0");
@@ -404,7 +408,7 @@ public class Session implements AutoCloseable {
                 LOGGER.debug("method=sync portal={}", portal);
                 pendingExecutions.clear();
                 clearState();
-                return portal.sync(planner, jobsLogs);
+                return portal.sync(planner, jobsLogs, jobId);
             default:
                 throw new IllegalStateException(
                     "Shouldn't have more than 1 pending execution. Got: " + pendingExecutions);

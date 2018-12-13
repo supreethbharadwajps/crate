@@ -251,5 +251,24 @@ public class DistributingConsumer implements RowConsumer {
         boolean needsMoreData() {
             return needsMoreData;
         }
+
+        @Override
+        public String toString() {
+            return "Downstream{" +
+                   "nodeId='" + nodeId + '\'' +
+                   ", needsMoreData=" + needsMoreData +
+                   '}';
+        }
+    }
+
+    @Override
+    public String toString() {
+        return "DistributingConsumer{" +
+               "jobId=" + jobId +
+               ", targetPhaseId=" + targetPhaseId +
+               ", bucketIdx=" + bucketIdx +
+               ", downstreams=" + downstreams +
+               ", failure=" + failure +
+               '}';
     }
 }

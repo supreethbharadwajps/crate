@@ -100,6 +100,7 @@ public class DistResultRXTask implements Task, DownstreamRXTask {
         return "DistResultRXTask{" +
                "id=" + id() +
                ", numBuckets=" + numBuckets +
+               ", pageBucketReceiver=" + pageBucketReceiver +
                ", isDone=" + completionFuture.isDone() +
                '}';
     }

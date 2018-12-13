@@ -37,8 +37,8 @@ import io.crate.exceptions.ReadOnlyException;
 import io.crate.exceptions.SQLExceptions;
 import io.crate.execution.engine.collect.stats.JobsLogs;
 import io.crate.expression.symbol.Field;
-import io.crate.metadata.RoutingProvider;
 import io.crate.metadata.CoordinatorTxnCtx;
+import io.crate.metadata.RoutingProvider;
 import io.crate.planner.DependencyCarrier;
 import io.crate.planner.Plan;
 import io.crate.planner.Planner;
@@ -47,10 +47,10 @@ import io.crate.planner.operators.StatementClassifier;
 import io.crate.planner.operators.SubQueryResults;
 import io.crate.sql.tree.Statement;
 import io.crate.types.DataType;
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.Randomness;
-import org.apache.logging.log4j.LogManager;
 
 import javax.annotation.Nullable;
 import java.util.Collections;
@@ -175,7 +175,7 @@ public class SimplePortal extends AbstractPortal {
     }
 
     @Override
-    public CompletableFuture<?> sync(Planner planner, JobsLogs jobsLogs) {
+    public CompletableFuture<?> sync(Planner planner, JobsLogs jobsLogs, @Nullable UUID optJobId) {
         assert analyzedStatement != null : "analyzedStatement must not be null";
 
         if (consumer != null && consumer.suspended()) {
@@ -185,7 +185,7 @@ public class SimplePortal extends AbstractPortal {
             return resultReceiver.completionFuture();
         }
 
-        UUID jobId = UUID.randomUUID();
+        UUID jobId = optJobId == null ? UUID.randomUUID() : optJobId;
         RoutingProvider routingProvider = new RoutingProvider(Randomness.get().nextInt(), planner.getAwarenessAttributes());
         ClusterState clusterState = planner.currentClusterState();
         PlannerContext plannerContext = new PlannerContext(

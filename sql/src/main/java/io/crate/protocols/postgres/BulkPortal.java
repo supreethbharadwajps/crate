@@ -34,8 +34,8 @@ import io.crate.data.Rows;
 import io.crate.exceptions.SQLExceptions;
 import io.crate.execution.engine.collect.stats.JobsLogs;
 import io.crate.expression.symbol.Field;
-import io.crate.metadata.RoutingProvider;
 import io.crate.metadata.CoordinatorTxnCtx;
+import io.crate.metadata.RoutingProvider;
 import io.crate.planner.DependencyCarrier;
 import io.crate.planner.Plan;
 import io.crate.planner.Planner;
@@ -138,7 +138,7 @@ class BulkPortal extends AbstractPortal {
     }
 
     @Override
-    public CompletableFuture<?> sync(Planner planner, JobsLogs jobsLogs) {
+    public CompletableFuture<?> sync(Planner planner, JobsLogs jobsLogs, @Nullable UUID optJobId) {
         List<Row> bulkParams = Rows.of(bulkArgs);
         CoordinatorTxnCtx coordinatorTxnCtx = new CoordinatorTxnCtx(sessionContext);
 

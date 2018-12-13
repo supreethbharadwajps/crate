@@ -38,8 +38,8 @@ import io.crate.exceptions.SQLExceptions;
 import io.crate.execution.engine.collect.stats.JobsLogs;
 import io.crate.expression.symbol.Field;
 import io.crate.expression.symbol.Symbols;
-import io.crate.metadata.RoutingProvider;
 import io.crate.metadata.CoordinatorTxnCtx;
+import io.crate.metadata.RoutingProvider;
 import io.crate.planner.Plan;
 import io.crate.planner.Planner;
 import io.crate.planner.PlannerContext;
@@ -148,7 +148,7 @@ class BatchPortal extends AbstractPortal {
     }
 
     @Override
-    public CompletableFuture<Void> sync(Planner planner, JobsLogs jobsLogs) {
+    public CompletableFuture<Void> sync(Planner planner, JobsLogs jobsLogs, @Nullable UUID optJobId) {
         CountdownFutureCallback completionCallback = new CountdownFutureCallback(analyzedStatements.size());
         for (int i = 0; i < analyzedStatements.size(); i++) {
             UUID jobId = UUID.randomUUID();

@@ -142,4 +142,11 @@ public class IncrementalPageBucketReceiver<T> implements PageBucketReceiver {
         lazyBatchIterator.kill(t);
         processingFuture.completeExceptionally(t);
     }
+
+    @Override
+    public String toString() {
+        return "IncrementalPageBucketReceiver{" +
+               "remainingUpstreams=" + remainingUpstreams +
+               '}';
+    }
 }

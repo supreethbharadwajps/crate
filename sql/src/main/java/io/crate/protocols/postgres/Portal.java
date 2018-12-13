@@ -32,6 +32,7 @@ import io.crate.types.DataType;
 
 import javax.annotation.Nullable;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -70,7 +71,7 @@ public interface Portal {
      *         Note: The future is either completed successfully or with an
      *         exception. The return value is not relevant.
      */
-    CompletableFuture<?> sync(Planner planner, JobsLogs jobsLogs);
+    CompletableFuture<?> sync(Planner planner, JobsLogs jobsLogs, @Nullable UUID jobId);
 
     void close();
 

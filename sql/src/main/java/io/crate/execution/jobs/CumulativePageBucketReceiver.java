@@ -302,4 +302,14 @@ public class CumulativePageBucketReceiver implements PageBucketReceiver {
             consumer.accept(null, t);
         }
     }
+
+    @Override
+    public String toString() {
+        return "CumulativePageBucketReceiver{" +
+               "phaseId=" + phaseId +
+               ", numBuckets=" + numBuckets +
+               ", exhausted=" + exhausted +
+               ", receivingFirstPage=" + receivingFirstPage +
+               '}';
+    }
 }
