@@ -41,6 +41,7 @@ import org.junit.Test;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.ListIterator;
+import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -49,6 +50,9 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
+
+import static org.hamcrest.Matchers.is;
 
 @ESIntegTestCase.ClusterScope(minNumDataNodes = 3, maxNumDataNodes = 3, transportClientRatio = 0, numClientNodes = 0)
 public class GroupByDuringDisruptionITest extends SQLTransportIntegrationTest {
@@ -68,6 +72,23 @@ public class GroupByDuringDisruptionITest extends SQLTransportIntegrationTest {
         stopThreads.set(true);
         executorService.shutdown();
         executorService.awaitTermination(5, TimeUnit.SECONDS);
+    }
+
+    @Test
+    @Repeat (iterations = 100)
+    public void testGroupByFinishesIfNodeIsStoppedBetweenPlanAndExecutionPhase() throws Exception {
+        execute("create table t1 (x int) clustered into 3 shards with (number_of_replicas = 1)");
+        execute("insert into t1 (x) (select * from generate_series(0, 10))");
+        execute("refresh table t1");
+
+        PlanForNode planForNode = plan("select count(*), x from t1 group by x");
+        String nodeName = planForNode.nodeName;
+        Optional<String> first = Stream.of(internalCluster().getNodeNames()).filter(x -> !x.equals(nodeName)).findFirst();
+        assertThat(first.isPresent(), is(true));
+
+        internalCluster().stopRandomNode(s -> Node.NODE_NAME_SETTING.get(s).equals(first.get()));
+
+        execute(planForNode).getBucket();
     }
 
     @Test
