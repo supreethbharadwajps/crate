@@ -153,10 +153,6 @@ public class TasksService extends AbstractLifecycleComponent {
         return newRootTask;
     }
 
-    public ConcurrentMap<UUID, RootTask> getActiveTasks() {
-        return activeTasks;
-    }
-
     /**
      * kills all tasks which are active at the time of the call of this method.
      *

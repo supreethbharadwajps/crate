@@ -22,7 +22,7 @@
 
 package io.crate.integrationtests;
 
-import com.carrotsearch.randomizedtesting.annotations.Seed;
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import io.crate.action.sql.SQLOperations;
 import io.crate.action.sql.Session;
 import io.crate.auth.user.User;
@@ -51,12 +51,11 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.IntStream;
 
 @ESIntegTestCase.ClusterScope(minNumDataNodes = 3, maxNumDataNodes = 3, transportClientRatio = 0, numClientNodes = 0)
-@Seed("7E9214BE397A0683:F9463174A59FC85D")
 public class GroupByDuringDisruptionITest extends SQLTransportIntegrationTest {
 
     private ExecutorService executorService;
     private AtomicBoolean stopThreads;
-    private int numThreads = 50;
+    private int numThreads = 25;
 
     @Before
     public void setupExecutor() throws Exception {
@@ -113,13 +112,13 @@ public class GroupByDuringDisruptionITest extends SQLTransportIntegrationTest {
     }
 
     @Test
-    //@TestLogging("io.crate.execution.jobs.transport.NodeDisconnectJobMonitorService:DEBUG,io.crate.execution.jobs.TasksService:TRACE")
-    @TestLogging("io.crate:TRACE")
+    @TestLogging("io.crate.execution.jobs.RootTask:TRACE,io.crate.execution.jobs.transport.NodeDisconnectJobMonitorService:DEBUG,io.crate.execution.jobs.TasksService:TRACE")
+    @Repeat (iterations = 100)
     public void testQueriesFinishSomehowIfNodeIsStopped() throws Exception {
         execute("create table doc.t1 (x int) clustered into 3 shards with (number_of_replicas = 1)");
         Object[][] bulkArgs = IntStream.concat(
-            IntStream.range(0, 24),
-            IntStream.range(2, 536))
+            IntStream.range(0, 1024),
+            IntStream.range(2, 1536))
             .mapToObj(x -> new Object[] { x })
             .toArray(Object[][]::new);
         execute("insert into doc.t1 (x) values (?)", bulkArgs);
@@ -129,7 +128,7 @@ public class GroupByDuringDisruptionITest extends SQLTransportIntegrationTest {
         String nodeToStop = nodeNames[2];
 
         final ArrayList<ActionFuture<SQLResponse>> resultFutures = new ArrayList<>();
-        int queriesToTriggerBeforeNodeStop = 10;
+        int queriesToTriggerBeforeNodeStop = 100;
         CountDownLatch triggered = new CountDownLatch(queriesToTriggerBeforeNodeStop);
         CountDownLatch threadsFinished = new CountDownLatch(numThreads);
         for (int i = 0; i < numThreads; i++) {
@@ -139,7 +138,7 @@ public class GroupByDuringDisruptionITest extends SQLTransportIntegrationTest {
                     Session session = internalCluster().getInstance(SQLOperations.class, nodeName)
                         .createSession("doc", User.CRATE_USER);
                     ActionFuture<SQLResponse> futureResult = SQLTransportExecutor.execute(
-                        "select x, count(*) from t1 group by x",
+                        "select x, count(*) from doc.t1 group by x",
                         null,
                         session
                     );
@@ -163,9 +162,22 @@ public class GroupByDuringDisruptionITest extends SQLTransportIntegrationTest {
         threadsFinished.await();
         logger.info("Stopped triggering new queries");
 
-        removeCompletedFutures(resultFutures);
-        logger.info("Remaining jobs: {}", resultFutures.size());
+        //removeCompletedFutures(resultFutures);
+        //logger.info("Remaining jobs: {}", resultFutures.size());
         assertNoTasksAreLeftOpen();
+
+        for (ActionFuture<SQLResponse> resultFuture : resultFutures) {
+            try {
+                resultFuture.get(10, TimeUnit.SECONDS);
+            } catch (TimeoutException e) {
+                throw e;
+            } catch (Throwable t) {
+                String message = t.getMessage();
+                if (!message.contains("Job killed")) {
+                    throw t;
+                }
+            }
+        }
         removeCompletedFutures(resultFutures);
         logger.info("Remaining jobs after waiting for tasks to complete: {}", resultFutures.size());
         assertThat(resultFutures, Matchers.empty());
@@ -175,12 +187,7 @@ public class GroupByDuringDisruptionITest extends SQLTransportIntegrationTest {
         ListIterator<ActionFuture<SQLResponse>> it = resultFutures.listIterator();
         while (it.hasNext()) {
             ActionFuture<SQLResponse> future = it.next();
-            try {
-                future.get(1, TimeUnit.SECONDS);
-            } catch (TimeoutException ignored) {
-                // we keep them in the list
-            } catch (Throwable t) {
-                logger.info("Query completed with failure: {}", t.getMessage());
+            if (future.isDone()) {
                 it.remove();
             }
         }

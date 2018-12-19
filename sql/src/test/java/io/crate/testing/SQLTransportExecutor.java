@@ -248,7 +248,9 @@ public class SQLTransportExecutor {
                 ResultReceiver resultReceiver = new ResultSetReceiver(listener, session.sessionContext(), outputFields);
                 session.execute(UNNAMED, 0, resultReceiver);
             }
-            session.sync(jobId);
+            session.sync(jobId).exceptionally(r -> {
+                listener.onFailure(new RuntimeException(r)); throw new RuntimeException(r);
+            });
         } catch (Throwable t) {
             listener.onFailure(SQLExceptions.createSQLActionException(t, session.sessionContext()));
         }
