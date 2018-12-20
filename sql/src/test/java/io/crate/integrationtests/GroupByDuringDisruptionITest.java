@@ -26,6 +26,7 @@ import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import io.crate.action.sql.SQLOperations;
 import io.crate.action.sql.Session;
 import io.crate.auth.user.User;
+import io.crate.data.Bucket;
 import io.crate.exceptions.Exceptions;
 import io.crate.testing.SQLResponse;
 import io.crate.testing.SQLTransportExecutor;
@@ -38,10 +39,12 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.ListIterator;
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -86,9 +89,23 @@ public class GroupByDuringDisruptionITest extends SQLTransportIntegrationTest {
         Optional<String> first = Stream.of(internalCluster().getNodeNames()).filter(x -> !x.equals(nodeName)).findFirst();
         assertThat(first.isPresent(), is(true));
 
-        internalCluster().stopRandomNode(s -> Node.NODE_NAME_SETTING.get(s).equals(first.get()));
+        executorService.submit(() -> {
+            try {
+                internalCluster().stopRandomNode(s -> Node.NODE_NAME_SETTING.get(s).equals(first.get()));
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        });
+        CompletableFuture<Bucket> result = new CompletableFuture<>();
 
-        execute(planForNode).getBucket();
+        executorService.submit(() -> {
+            try {
+                result.complete(execute(planForNode).getBucket());
+            } catch (Exception e) {
+                result.completeExceptionally(e);
+            }
+        });
+        result.get(5, TimeUnit.SECONDS);
     }
 
     @Test

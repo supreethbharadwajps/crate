@@ -661,7 +661,7 @@ public class JobSetup extends AbstractComponent {
             );
 
             PageBucketReceiver pageBucketReceiver;
-            if (collector == null) {
+            if (true || collector == null) {
                 pageBucketReceiver = new CumulativePageBucketReceiver(
                     nodeName(),
                     phase.phaseId(),
