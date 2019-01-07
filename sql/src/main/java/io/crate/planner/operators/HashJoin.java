@@ -24,6 +24,7 @@ package io.crate.planner.operators;
 
 import com.google.common.annotations.VisibleForTesting;
 import io.crate.analyze.OrderBy;
+import io.crate.analyze.relations.AbstractTableRelation;
 import io.crate.analyze.relations.AnalyzedRelation;
 import io.crate.collections.Lists2;
 import io.crate.data.Row;
@@ -58,24 +59,33 @@ import java.util.stream.Collectors;
 
 import static io.crate.planner.operators.LogicalPlanner.NO_LIMIT;
 
-class HashJoin extends TwoInputPlan {
+class HashJoin implements LogicalPlan {
 
     private final Symbol joinCondition;
     private final TableStats tableStats;
     @VisibleForTesting
     final AnalyzedRelation concreteRelation;
+    final List<Symbol> outputs;
+    final LogicalPlan lhs;
+    final LogicalPlan rhs;
+    final HashMap<Symbol, Symbol> expressionMapping;
+    final List<AbstractTableRelation> baseTables;
 
     HashJoin(LogicalPlan lhs,
              LogicalPlan rhs,
              Symbol joinCondition,
              AnalyzedRelation concreteRelation,
              TableStats tableStats) {
-        super(lhs, rhs, new ArrayList<>());
+        this.lhs = lhs;
+        this.rhs = rhs;
+        this.baseTables = Lists2.concat(lhs.baseTables(), rhs.baseTables());
+        this.outputs = Lists2.concat(lhs.outputs(), rhs.outputs());
         this.concreteRelation = concreteRelation;
         this.joinCondition = joinCondition;
-        this.outputs.addAll(lhs.outputs());
-        this.outputs.addAll(rhs.outputs());
         this.tableStats = tableStats;
+        this.expressionMapping = new HashMap<>();
+        this.expressionMapping.putAll(lhs.expressionMapping());
+        this.expressionMapping.putAll(rhs.expressionMapping());
     }
 
     JoinType joinType() {
@@ -94,6 +104,12 @@ class HashJoin extends TwoInputPlan {
         deps.putAll(leftDeps);
         deps.putAll(rightDeps);
         return deps;
+    }
+
+    @Nullable
+    @Override
+    public LogicalPlan tryOptimize(@Nullable LogicalPlan ancestor, SymbolMapper mapper) {
+        return null;
     }
 
     @Override
@@ -198,6 +214,21 @@ class HashJoin extends TwoInputPlan {
         );
     }
 
+    @Override
+    public List<Symbol> outputs() {
+        return outputs;
+    }
+
+    @Override
+    public Map<Symbol, Symbol> expressionMapping() {
+        return expressionMapping;
+    }
+
+    @Override
+    public List<AbstractTableRelation> baseTables() {
+        return baseTables;
+    }
+
     private Tuple<List<Symbol>, List<Symbol>> extractHashJoinSymbolsFromJoinSymbolsAndSplitPerSide(boolean switchedTables) {
         Map<AnalyzedRelation, List<Symbol>> hashJoinSymbols = HashJoinConditionSymbolsExtractor.extract(joinCondition);
 
@@ -213,11 +244,6 @@ class HashJoin extends TwoInputPlan {
             return new Tuple<>(hashJoinSymbolsForConcreteRelation, hashJoinSymbolsForJoinTree);
         }
         return new Tuple<>(hashJoinSymbolsForJoinTree, hashJoinSymbolsForConcreteRelation);
-    }
-
-    @Override
-    protected LogicalPlan updateSources(LogicalPlan newLeftSource, LogicalPlan newRightSource) {
-        return new HashJoin(newLeftSource, newRightSource, joinCondition, concreteRelation, tableStats);
     }
 
     @Override
