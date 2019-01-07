@@ -23,19 +23,25 @@
 package io.crate.planner.operators;
 
 import io.crate.analyze.relations.AbstractTableRelation;
+import io.crate.expression.symbol.SelectSymbol;
 import io.crate.expression.symbol.Symbol;
 
 import javax.annotation.Nullable;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 /**
  * A {@link LogicalPlan} with two no other LogicalPlans as input.
  */
-abstract class ZeroInputPlan extends LogicalPlanBase {
+abstract class ZeroInputPlan implements LogicalPlan {
 
-    public ZeroInputPlan(List<Symbol> outputs, List<AbstractTableRelation> baseTables) {
-        super(outputs, Collections.emptyMap(), baseTables, Collections.emptyMap());
+    final List<Symbol> outputs;
+    private final List<AbstractTableRelation> baseTables;
+
+    ZeroInputPlan(List<Symbol> outputs, List<AbstractTableRelation> baseTables) {
+        this.outputs = outputs;
+        this.baseTables = baseTables;
     }
 
     @Override
@@ -45,5 +51,25 @@ abstract class ZeroInputPlan extends LogicalPlanBase {
         }
         // We don't have any sources, so just return this instance
         return this;
+    }
+
+    @Override
+    public List<Symbol> outputs() {
+        return outputs;
+    }
+
+    @Override
+    public List<AbstractTableRelation> baseTables() {
+        return baseTables;
+    }
+
+    @Override
+    public Map<Symbol, Symbol> expressionMapping() {
+        return Collections.emptyMap();
+    }
+
+    @Override
+    public Map<LogicalPlan, SelectSymbol> dependencies() {
+        return Collections.emptyMap();
     }
 }

@@ -22,30 +22,41 @@
 
 package io.crate.planner.operators;
 
+import io.crate.analyze.relations.AbstractTableRelation;
+import io.crate.collections.Lists2;
+import io.crate.expression.symbol.SelectSymbol;
 import io.crate.expression.symbol.Symbol;
 
 import javax.annotation.Nullable;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * A {@link LogicalPlan} with two other LogicalPlans as input.
  */
-abstract class TwoInputPlan extends LogicalPlanBase {
+abstract class TwoInputPlan implements LogicalPlan {
 
     final LogicalPlan lhs;
     final LogicalPlan rhs;
+    final List<AbstractTableRelation> baseTables;
+    final HashMap<Symbol, Symbol> expressionMapping;
+    final List<Symbol> outputs;
+    final HashMap<LogicalPlan, SelectSymbol> dependencies;
 
     TwoInputPlan(LogicalPlan left, LogicalPlan right, List<Symbol> outputs) {
-        super(outputs, new HashMap<>(), new ArrayList<>(), Collections.emptyMap());
+        this.outputs = outputs;
         this.lhs = left;
         this.rhs = right;
-        this.baseTables.addAll(lhs.baseTables());
-        this.baseTables.addAll(rhs.baseTables());
+        this.baseTables = Lists2.concat(lhs.baseTables(), rhs.baseTables());
+
+        this.expressionMapping = new HashMap<>();
         this.expressionMapping.putAll(lhs.expressionMapping());
         this.expressionMapping.putAll(rhs.expressionMapping());
+
+        this.dependencies = new HashMap<>();
+        this.dependencies.putAll(lhs.dependencies());
+        this.dependencies.putAll(rhs.dependencies());
     }
 
     @Override
@@ -75,4 +86,24 @@ abstract class TwoInputPlan extends LogicalPlanBase {
      * @return A new copy of this {@link OneInputPlan} with the new sources.
      */
     protected abstract LogicalPlan updateSources(LogicalPlan newLeftSource, LogicalPlan newRightSource);
+
+    @Override
+    public List<Symbol> outputs() {
+        return outputs;
+    }
+
+    @Override
+    public Map<Symbol, Symbol> expressionMapping() {
+        return expressionMapping;
+    }
+
+    @Override
+    public List<AbstractTableRelation> baseTables() {
+        return baseTables;
+    }
+
+    @Override
+    public Map<LogicalPlan, SelectSymbol> dependencies() {
+        return dependencies;
+    }
 }

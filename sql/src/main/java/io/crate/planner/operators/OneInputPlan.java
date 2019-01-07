@@ -33,9 +33,13 @@ import java.util.Map;
 /**
  * A {@link LogicalPlan} with one other LogicalPlan as input.
  */
-abstract class OneInputPlan extends LogicalPlanBase {
+abstract class OneInputPlan implements LogicalPlan {
 
     protected final LogicalPlan source;
+    private final List<AbstractTableRelation> baseTables;
+    final List<Symbol> outputs;
+    final Map<Symbol, Symbol> expressionMapping;
+    final Map<LogicalPlan, SelectSymbol> dependencies;
 
     OneInputPlan(LogicalPlan source) {
         this(source, source.outputs());
@@ -54,7 +58,10 @@ abstract class OneInputPlan extends LogicalPlanBase {
                  Map<Symbol, Symbol> expressionMapping,
                  List<AbstractTableRelation> baseTables,
                  Map<LogicalPlan, SelectSymbol> dependencies) {
-        super(outputs, expressionMapping, baseTables, dependencies);
+        this.outputs = outputs;
+        this.expressionMapping = expressionMapping;
+        this.baseTables = baseTables;
+        this.dependencies = dependencies;
         this.source = source;
     }
 
@@ -100,4 +107,23 @@ abstract class OneInputPlan extends LogicalPlanBase {
      */
     protected abstract LogicalPlan updateSource(LogicalPlan newSource, SymbolMapper mapper);
 
+    @Override
+    public List<Symbol> outputs() {
+        return outputs;
+    }
+
+    @Override
+    public Map<Symbol, Symbol> expressionMapping() {
+        return expressionMapping;
+    }
+
+    @Override
+    public List<AbstractTableRelation> baseTables() {
+        return baseTables;
+    }
+
+    @Override
+    public Map<LogicalPlan, SelectSymbol> dependencies() {
+        return dependencies;
+    }
 }
