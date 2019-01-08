@@ -35,6 +35,7 @@ import io.crate.execution.jobs.NodeJobsCounter;
 import io.crate.execution.support.RetryListener;
 import io.crate.settings.CrateSetting;
 import io.crate.types.DataTypes;
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.create.CreatePartitionsRequest;
@@ -43,7 +44,6 @@ import org.elasticsearch.action.admin.indices.create.TransportCreatePartitionsAc
 import org.elasticsearch.action.bulk.BackoffPolicy;
 import org.elasticsearch.action.bulk.BulkRequestExecutor;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -245,7 +245,7 @@ public class ShardingUpsertExecutor
                 this::execute,
                 resultCollector.combiner(),
                 resultCollector.supplier().get(),
-                this::shouldPause,
+                requests -> false,
                 BACKOFF_POLICY
             );
         return executor.consumeIteratorAndExecute()
