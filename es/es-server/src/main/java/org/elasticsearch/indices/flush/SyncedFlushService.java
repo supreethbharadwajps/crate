@@ -20,7 +20,6 @@ package org.elasticsearch.indices.flush;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.flush.SyncedFlushResponse;
@@ -558,41 +557,20 @@ public class SyncedFlushService extends AbstractComponent implements IndexEventL
             this.existingSyncId = existingSyncId;
         }
 
-        boolean includeNumDocs(Version version) {
-            if (version.major == Version.V_5_6_8.major) {
-                return version.onOrAfter(Version.V_5_6_8);
-            }
-            return version.onOrAfter(Version.V_6_2_2);
-        }
-
-        boolean includeExistingSyncId(Version version) {
-            return version.onOrAfter(Version.V_6_3_0);
-        }
-
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             commitId = new Engine.CommitId(in);
-            if (includeNumDocs(in.getVersion())) {
-                numDocs = in.readInt();
-            } else {
-                numDocs = UNKNOWN_NUM_DOCS;
-            }
-            if (includeExistingSyncId(in.getVersion())) {
-                existingSyncId = in.readOptionalString();
-            }
+            numDocs = in.readInt();
+            existingSyncId = in.readOptionalString();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             commitId.writeTo(out);
-            if (includeNumDocs(out.getVersion())) {
-                out.writeInt(numDocs);
-            }
-            if (includeExistingSyncId(out.getVersion())) {
-                out.writeOptionalString(existingSyncId);
-            }
+            out.writeInt(numDocs);
+            out.writeOptionalString(existingSyncId);
         }
     }
 
