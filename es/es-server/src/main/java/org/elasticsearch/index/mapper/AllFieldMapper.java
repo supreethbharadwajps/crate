@@ -24,7 +24,6 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.Loggers;
@@ -107,12 +106,9 @@ public class AllFieldMapper extends MetadataFieldMapper {
         @Override
         public MetadataFieldMapper.Builder<?,?> parse(String name, Map<String, Object> node,
                                                  ParserContext parserContext) throws MapperParsingException {
-            if (node.isEmpty() == false &&
-                    parserContext.indexVersionCreated().onOrAfter(Version.V_6_0_0_alpha1)) {
-                deprecationLogger.deprecated("[_all] is deprecated in 6.0+ and will be removed in 7.0. " +
-                                "As a replacement, you can use [copy_to] on " +
-                                "mapping fields to create your own catch all field.");
-            }
+            deprecationLogger.deprecated("[_all] is deprecated in 6.0+ and will be removed in 7.0. " +
+                            "As a replacement, you can use [copy_to] on " +
+                            "mapping fields to create your own catch all field.");
             Builder builder = new Builder(parserContext.mapperService().fullName(NAME));
             builder.fieldType().setIndexAnalyzer(parserContext.getIndexAnalyzers().getDefaultIndexAnalyzer());
             builder.fieldType().setSearchAnalyzer(parserContext.getIndexAnalyzers().getDefaultSearchAnalyzer());
@@ -145,8 +141,7 @@ public class AllFieldMapper extends MetadataFieldMapper {
                 Object fieldNode = entry.getValue();
                 if (fieldName.equals("enabled")) {
                     boolean enabled = TypeParsers.nodeBooleanValueLenient(name, "enabled", fieldNode);
-                    if (enabled && node.isEmpty() == false &&
-                            parserContext.indexVersionCreated().onOrAfter(Version.V_6_0_0_alpha1)) {
+                    if (enabled && node.isEmpty() == false) {
                         throw new IllegalArgumentException("Enabling [_all] is disabled in 6.0. " +
                                         "As a replacement, you can use [copy_to] " +
                                         "on mapping fields to create your own catch all field.");
@@ -156,12 +151,6 @@ public class AllFieldMapper extends MetadataFieldMapper {
                     iterator.remove();
                 }
             }
-            if (enabledSet == false && parserContext.indexVersionCreated().before(Version.V_6_0_0_alpha1)) {
-                // So there is no "enabled" field, however, the index was created prior to 6.0,
-                // and therefore the default for this particular index should be "true" for
-                // enabling _all
-                builder.enabled(EnabledAttributeMapper.ENABLED);
-            }
             return builder;
         }
 
@@ -169,13 +158,7 @@ public class AllFieldMapper extends MetadataFieldMapper {
         public MetadataFieldMapper getDefault(MappedFieldType fieldType, ParserContext context) {
             final Settings indexSettings = context.mapperService().getIndexSettings().getSettings();
             if (fieldType != null) {
-                if (context.indexVersionCreated().before(Version.V_6_0_0_alpha1)) {
-                    // The index was created prior to 6.0, and therefore the default for this
-                    // particular index should be "true" for enabling _all
-                    return new AllFieldMapper(fieldType.clone(), EnabledAttributeMapper.ENABLED, indexSettings);
-                } else {
-                    return new AllFieldMapper(indexSettings, fieldType);
-                }
+                return new AllFieldMapper(indexSettings, fieldType);
             } else {
                 return parse(NAME, Collections.emptyMap(), context)
                         .build(new BuilderContext(indexSettings, new ContentPath(1)));

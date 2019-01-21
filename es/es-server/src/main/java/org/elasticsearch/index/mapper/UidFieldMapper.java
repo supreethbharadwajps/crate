@@ -27,7 +27,6 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.Loggers;
@@ -163,12 +162,7 @@ public class UidFieldMapper extends MetadataFieldMapper {
                 String uidString = uid.toString();
                 if (uidString.startsWith(expectedPrefix)) {
                     String id = uidString.substring(expectedPrefix.length(), uidString.length());
-                    BytesRef encodedId;
-                    if (context.indexVersionCreated().onOrAfter(Version.V_6_0_0_beta1)) {
-                        encodedId = Uid.encodeId(id);
-                    } else {
-                        encodedId = new BytesRef(id);
-                    }
+                    BytesRef encodedId = Uid.encodeId(id);
                     ids.add(encodedId);
                 }
             }

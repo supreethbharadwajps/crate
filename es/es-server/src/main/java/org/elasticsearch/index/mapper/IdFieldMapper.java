@@ -28,8 +28,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
-import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.Index;
@@ -136,19 +134,13 @@ public class IdFieldMapper extends MetadataFieldMapper {
             if (indexOptions() != IndexOptions.NONE) {
                 failIfNotIndexed();
                 BytesRef[] bytesRefs = new BytesRef[values.size()];
-                final boolean is5xIndex = context.indexVersionCreated().before(Version.V_6_0_0_beta1);
                 for (int i = 0; i < bytesRefs.length; i++) {
                     BytesRef id;
-                    if (is5xIndex) {
-                        // 5.x index with index.mapping.single_type = true
-                        id = BytesRefs.toBytesRef(values.get(i));
-                    } else {
-                        Object idObject = values.get(i);
-                        if (idObject instanceof BytesRef) {
-                            idObject = ((BytesRef) idObject).utf8ToString();
-                        }
-                        id = Uid.encodeId(idObject.toString());
+                    Object idObject = values.get(i);
+                    if (idObject instanceof BytesRef) {
+                        idObject = ((BytesRef) idObject).utf8ToString();
                     }
+                    id = Uid.encodeId(idObject.toString());
                     bytesRefs[i] = id;
                 }
                 return new TermInSetQuery(name(), bytesRefs);
@@ -171,10 +163,6 @@ public class IdFieldMapper extends MetadataFieldMapper {
                 public IndexFieldData<?> build(IndexSettings indexSettings, MappedFieldType fieldType, IndexFieldDataCache cache,
                         CircuitBreakerService breakerService, MapperService mapperService) {
                     final IndexFieldData<?> fieldData = fieldDataBuilder.build(indexSettings, fieldType, cache, breakerService, mapperService);
-                    if (indexSettings.getIndexVersionCreated().before(Version.V_6_0_0_beta1)) {
-                        // ids were indexed as utf-8
-                        return fieldData;
-                    }
                     return new IndexFieldData<AtomicFieldData>() {
 
                         @Override
@@ -285,12 +273,8 @@ public class IdFieldMapper extends MetadataFieldMapper {
     @Override
     protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
         if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored()) {
-            if (context.mapperService().getIndexSettings().getIndexVersionCreated().onOrAfter(Version.V_6_0_0_beta1)) {
-                BytesRef id = Uid.encodeId(context.sourceToParse().id());
-                fields.add(new Field(NAME, id, fieldType));
-            } else {
-                fields.add(new Field(NAME, context.sourceToParse().id(), fieldType));
-            }
+            BytesRef id = Uid.encodeId(context.sourceToParse().id());
+            fields.add(new Field(NAME, id, fieldType));
         }
     }
 

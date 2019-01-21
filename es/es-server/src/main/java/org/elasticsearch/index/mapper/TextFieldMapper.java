@@ -19,8 +19,8 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.AnalyzerWrapper;
 import org.apache.lucene.analysis.CachingTokenFilter;
@@ -38,7 +38,6 @@ import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.NormsFieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -173,17 +172,11 @@ public class TextFieldMapper extends FieldMapper {
                 if (fieldType().isSearchable() == false) {
                     throw new IllegalArgumentException("Cannot set index_prefixes on unindexed field [" + name() + "]");
                 }
-                // Copy the index options of the main field to allow phrase queries on
-                // the prefix field.
-                if (context.indexCreatedVersion().onOrAfter(Version.V_6_4_0)) {
-                    if (fieldType.indexOptions() == IndexOptions.DOCS_AND_FREQS) {
-                        // frequencies are not needed because prefix queries always use a constant score
-                        prefixFieldType.setIndexOptions(IndexOptions.DOCS);
-                    } else {
-                        prefixFieldType.setIndexOptions(fieldType.indexOptions());
-                    }
-                } else if (fieldType.indexOptions() == IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS) {
-                    prefixFieldType.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS);
+                if (fieldType.indexOptions() == IndexOptions.DOCS_AND_FREQS) {
+                    // frequencies are not needed because prefix queries always use a constant score
+                    prefixFieldType.setIndexOptions(IndexOptions.DOCS);
+                } else {
+                    prefixFieldType.setIndexOptions(fieldType.indexOptions());
                 }
                 if (fieldType.storeTermVectorOffsets()) {
                     prefixFieldType.setStoreTermVectorOffsets(true);

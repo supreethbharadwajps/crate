@@ -23,7 +23,6 @@ import com.carrotsearch.hppc.ObjectLongMap;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.CheckIndex;
 import org.apache.lucene.index.IndexCommit;
-import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
@@ -96,7 +95,6 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.RootObjectMapper;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.Uid;
-import org.elasticsearch.index.mapper.UidFieldMapper;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.refresh.RefreshStats;
@@ -403,9 +401,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             if (state == IndexShardState.POST_RECOVERY && newRouting.active()) {
                 assert currentRouting.active() == false : "we are in POST_RECOVERY, but our shard routing is active " + currentRouting;
 
-                assert currentRouting.isRelocationTarget() == false || currentRouting.primary() == false ||
-                    recoveryState.getSourceNode().getVersion().before(Version.V_6_0_0_alpha1) ||
-                        replicationTracker.isPrimaryMode() :
+                assert currentRouting.isRelocationTarget() == false || currentRouting.primary() == false
+                       || replicationTracker.isPrimaryMode() :
                     "a primary relocation is completed by the master, but primary mode is not active " + currentRouting;
 
                 changeState(IndexShardState.STARTED, "global state is [" + newRouting.state() + "]");
@@ -427,20 +424,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         if (currentRouting.isRelocationTarget() == false) {
                             // the master started a recovering primary, activate primary mode.
                             replicationTracker.activatePrimaryMode(getLocalCheckpoint());
-                        } else if (recoveryState.getSourceNode().getVersion().before(Version.V_6_0_0_alpha1)) {
-                            // there was no primary context hand-off in < 6.0.0, need to manually activate the shard
-                            replicationTracker.activatePrimaryMode(getLocalCheckpoint());
-                            // Flush the translog as it may contain operations with no sequence numbers. We want to make sure those
-                            // operations will never be replayed as part of peer recovery to avoid an arbitrary mixture of operations with
-                            // seq# (due to active indexing) and operations without a seq# coming from the translog. We therefore flush
-                            // to create a lucene commit point to an empty translog file.
-                            getEngine().flush(false, true);
-                            if (getMaxSeqNoOfUpdatesOrDeletes() == SequenceNumbers.UNASSIGNED_SEQ_NO) {
-                                // If the old primary was on an old version that did not replicate the msu,
-                                // we need to bootstrap it manually from its local history.
-                                assert indexSettings.getIndexVersionCreated().before(Version.V_6_5_0);
-                                getEngine().advanceMaxSeqNoOfUpdatesOrDeletes(seqNoStats().getMaxSeqNo());
-                            }
                         }
                     }
                 } else {
@@ -493,22 +476,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                                  * the reverted operations on this shard by replaying the translog to avoid losing acknowledged writes.
                                  */
                                 final Engine engine = getEngine();
-                                if (getMaxSeqNoOfUpdatesOrDeletes() == SequenceNumbers.UNASSIGNED_SEQ_NO) {
-                                    // If the old primary was on an old version that did not replicate the msu,
-                                    // we need to bootstrap it manually from its local history.
-                                    assert indexSettings.getIndexVersionCreated().before(Version.V_6_5_0);
-                                    engine.advanceMaxSeqNoOfUpdatesOrDeletes(seqNoStats().getMaxSeqNo());
-                                }
                                 engine.restoreLocalHistoryFromTranslog((resettingEngine, snapshot) ->
                                     runTranslogRecovery(resettingEngine, snapshot, Engine.Operation.Origin.LOCAL_RESET, () -> {}));
-                                if (indexSettings.getIndexVersionCreated().onOrBefore(Version.V_6_0_0_alpha1)) {
-                                    // an index that was created before sequence numbers were introduced may contain operations in its
-                                    // translog that do not have a sequence numbers. We want to make sure those operations will never
-                                    // be replayed as part of peer recovery to avoid an arbitrary mixture of operations with seq# (due
-                                    // to active indexing) and operations without a seq# coming from the translog. We therefore flush
-                                    // to create a lucene commit point to an empty translog file.
-                                    engine.flush(false, true);
-                                }
                                 /* Rolling the translog generation is not strictly needed here (as we will never have collisions between
                                  * sequence numbers in a translog generation in a new primary as it takes the last known sequence number
                                  * as a starting point), but it simplifies reasoning about the relationship between primary terms and
@@ -722,14 +691,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         if (docMapper.getMapping() != null) {
             doc.addDynamicMappingsUpdate(docMapper.getMapping());
         }
-        Term uid;
-        if (indexCreatedVersion.onOrAfter(Version.V_6_0_0_beta1)) {
-            uid = new Term(IdFieldMapper.NAME, Uid.encodeId(doc.id()));
-        } else if (docMapper.getDocumentMapper().idFieldMapper().fieldType().indexOptions() != IndexOptions.NONE) {
-            uid = new Term(IdFieldMapper.NAME, doc.id());
-        } else {
-            uid = new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(doc.type(), doc.id()));
-        }
+        Term uid = new Term(IdFieldMapper.NAME, Uid.encodeId(doc.id()));
         return new Engine.Index(uid, doc, seqNo, primaryTerm, version, versionType, origin, startTime, autoGeneratedIdTimestamp, isRetry);
     }
 
@@ -828,19 +790,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     private Term extractUidForDelete(String type, String id) {
-        if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_6_0_0_beta1)) {
-            assert indexSettings.isSingleType();
-            // This is only correct because we create types dynamically on delete operations
-            // otherwise this could match the same _id from a different type
-            BytesRef idBytes = Uid.encodeId(id);
-            return new Term(IdFieldMapper.NAME, idBytes);
-        } else if (indexSettings.isSingleType()) {
-            // This is only correct because we create types dynamically on delete operations
-            // otherwise this could match the same _id from a different type
-            return new Term(IdFieldMapper.NAME, id);
-        } else {
-            return new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(type, id));
-        }
+        assert indexSettings.isSingleType();
+        // This is only correct because we create types dynamically on delete operations
+        // otherwise this could match the same _id from a different type
+        BytesRef idBytes = Uid.encodeId(id);
+        return new Term(IdFieldMapper.NAME, idBytes);
     }
 
     private Engine.DeleteResult delete(Engine engine, Engine.Delete delete) throws IOException {
@@ -1393,13 +1347,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     private boolean assertMaxUnsafeAutoIdInCommit() throws IOException {
         final Map<String, String> userData = SegmentInfos.readLatestCommit(store.directory()).getUserData();
-        if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_5_5_0)) {
-            // as of 5.5.0, the engine stores the maxUnsafeAutoIdTimestamp in the commit point.
-            // This should have baked into the commit by the primary we recover from, regardless of the index age.
-            assert userData.containsKey(Engine.MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID) :
-                "opening index which was created post 5.5.0 but " + Engine.MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID
-                    + " is not found in commit";
-        }
+        // as of ES 5.5.0, the engine stores the maxUnsafeAutoIdTimestamp in the commit point.
+        // This should have baked into the commit by the primary we recover from, regardless of the index age.
+        assert userData.containsKey(Engine.MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID) :
+            "opening index which was created post 5.5.0 but " + Engine.MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID
+                + " is not found in commit";
         return true;
     }
 
@@ -1953,12 +1905,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             getLocalCheckpoint() == primaryContext.getCheckpointStates().get(routingEntry().allocationId().getId()).getLocalCheckpoint();
         synchronized (mutex) {
             replicationTracker.activateWithPrimaryContext(primaryContext); // make changes to primaryMode flag only under mutex
-            if (getMaxSeqNoOfUpdatesOrDeletes() == SequenceNumbers.UNASSIGNED_SEQ_NO) {
-                // If the old primary was on an old version that did not replicate the msu,
-                // we need to bootstrap it manually from its local history.
-                assert indexSettings.getIndexVersionCreated().before(Version.V_6_5_0);
-                getEngine().advanceMaxSeqNoOfUpdatesOrDeletes(seqNoStats().getMaxSeqNo());
-            }
         }
     }
 

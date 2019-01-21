@@ -30,7 +30,6 @@ import org.apache.lucene.search.DocValuesTermsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.lucene.BytesRefs;
@@ -97,16 +96,8 @@ public class ParentFieldMapper extends MetadataFieldMapper {
 
         @Override
         public ParentFieldMapper build(BuilderContext context) {
-            if (context.indexCreatedVersion().onOrAfter(Version.V_6_5_0)) {
-                throw new MapperParsingException("[_parent] field is disabled on indices with a single type. " +
-                    "Use a [join] field instead.");
-            }
-            if (parentType == null) {
-                throw new MapperParsingException("[_parent] field mapping must contain the [type] option");
-            }
-            name = joinField(parentType);
-            setupFieldType(context);
-            return new ParentFieldMapper(createParentJoinFieldMapper(documentType, context), fieldType, parentType, context.indexSettings());
+            throw new MapperParsingException("[_parent] field is disabled on indices with a single type. " +
+                "Use a [join] field instead.");
         }
     }
 

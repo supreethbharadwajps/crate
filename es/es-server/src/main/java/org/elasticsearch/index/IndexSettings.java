@@ -30,7 +30,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.index.mapper.AllFieldMapper;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.node.Node;
 
@@ -54,12 +53,7 @@ public final class IndexSettings {
     static {
         Function<Settings, List<String>> defValue = settings -> {
             final String defaultField;
-            if (settings.getAsVersion(IndexMetaData.SETTING_VERSION_CREATED, null) != null &&
-                    Version.indexCreated(settings).before(Version.V_6_0_0_alpha1)) {
-                defaultField = AllFieldMapper.NAME;
-            } else {
-                defaultField = "*";
-            }
+            defaultField = "*";
             return Collections.singletonList(defaultField);
         };
         DEFAULT_FIELD_SETTING =
@@ -281,9 +275,6 @@ public final class IndexSettings {
     static {
         Function<Settings, String> defValue = settings -> {
             boolean singleType = true;
-            if (settings.getAsVersion(IndexMetaData.SETTING_VERSION_CREATED, null) != null) {
-                singleType = Version.indexCreated(settings).onOrAfter(Version.V_6_0_0_alpha1);
-            }
             return Boolean.valueOf(singleType).toString();
         };
         INDEX_MAPPING_SINGLE_TYPE_SETTING = Setting.boolSetting(INDEX_MAPPING_SINGLE_TYPE_SETTING_KEY, defValue, Property.IndexScope,
@@ -439,7 +430,7 @@ public final class IndexSettings {
         generationThresholdSize = scopedSettings.get(INDEX_TRANSLOG_GENERATION_THRESHOLD_SIZE_SETTING);
         mergeSchedulerConfig = new MergeSchedulerConfig(this);
         gcDeletesInMillis = scopedSettings.get(INDEX_GC_DELETES_SETTING).getMillis();
-        softDeleteEnabled = version.onOrAfter(Version.V_6_5_0) && scopedSettings.get(INDEX_SOFT_DELETES_SETTING);
+        softDeleteEnabled = scopedSettings.get(INDEX_SOFT_DELETES_SETTING);
         softDeleteRetentionOperations = scopedSettings.get(INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING);
         warmerEnabled = scopedSettings.get(INDEX_WARMER_ENABLED_SETTING);
         maxResultWindow = scopedSettings.get(MAX_RESULT_WINDOW_SETTING);
@@ -458,10 +449,6 @@ public final class IndexSettings {
         this.mergePolicyConfig = new MergePolicyConfig(logger, this);
         this.indexSortConfig = new IndexSortConfig(this);
         singleType = INDEX_MAPPING_SINGLE_TYPE_SETTING.get(indexMetaData.getSettings()); // get this from metadata - it's not registered
-        if ((singleType || version.before(Version.V_6_0_0_alpha1)) == false) {
-            throw new AssertionError(index.toString()  + "multiple types are only allowed on pre 6.x indices but version is: ["
-                + version + "]");
-        }
 
         scopedSettings.addSettingsUpdateConsumer(MergePolicyConfig.INDEX_COMPOUND_FORMAT_SETTING, mergePolicyConfig::setNoCFSRatio);
         scopedSettings.addSettingsUpdateConsumer(MergePolicyConfig.INDEX_MERGE_POLICY_DELETES_PCT_ALLOWED_SETTING, mergePolicyConfig::setDeletesPctAllowed);
@@ -889,14 +876,6 @@ public final class IndexSettings {
      */
     public long getSoftDeleteRetentionOperations() {
         return this.softDeleteRetentionOperations;
-    }
-
-    /**
-     * Returns true if the this index should be searched throttled ie. using the
-     * {@link org.elasticsearch.threadpool.ThreadPool.Names#SEARCH_THROTTLED} thread-pool
-     */
-    public boolean isSearchThrottled() {
-        return searchThrottled;
     }
 
     private void setSearchThrottled(boolean searchThrottled) {

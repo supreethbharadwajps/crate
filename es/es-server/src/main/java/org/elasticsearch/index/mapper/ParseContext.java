@@ -25,8 +25,8 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.lucene.all.AllEntries;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.lucene.all.AllEntries;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.IndexSettings;
 
@@ -460,18 +460,13 @@ public abstract class ParseContext implements Iterable<ParseContext.Document>{
         void postParse() {
             if (documents.size() > 1) {
                 docsReversed = true;
-                if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_6_5_0)) {
-                    /**
-                     * For indices created on or after {@link Version#V_6_5_0} we preserve the order
-                     * of the children while ensuring that parents appear after them.
-                     */
-                    List<Document> newDocs = reorderParent(documents);
-                    documents.clear();
-                    documents.addAll(newDocs);
-                } else {
-                    // reverse the order of docs for nested docs support, parent should be last
-                    Collections.reverse(documents);
-                }
+                /**
+                 * For indices created on or after {@link Version#V_6_5_0} we preserve the order
+                 * of the children while ensuring that parents appear after them.
+                 */
+                List<Document> newDocs = reorderParent(documents);
+                documents.clear();
+                documents.addAll(newDocs);
             }
         }
 

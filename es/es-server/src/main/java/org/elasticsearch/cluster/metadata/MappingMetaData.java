@@ -20,7 +20,6 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -30,7 +29,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.DocumentMapper;
 
 import java.io.IOException;
@@ -182,13 +180,6 @@ public class MappingMetaData extends AbstractDiffable<MappingMetaData> {
         source().writeTo(out);
         // routing
         out.writeBoolean(routing().required());
-        if (out.getVersion().before(Version.V_6_0_0_alpha1)) {
-            // timestamp
-            out.writeBoolean(false); // enabled
-            out.writeString(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.format());
-            out.writeOptionalString("now"); // 5.x default
-            out.writeOptionalBoolean(null);
-        }
         out.writeBoolean(hasParentField());
     }
 
@@ -219,16 +210,6 @@ public class MappingMetaData extends AbstractDiffable<MappingMetaData> {
         source = CompressedXContent.readCompressedString(in);
         // routing
         routing = new Routing(in.readBoolean());
-        if (in.getVersion().before(Version.V_6_0_0_alpha1)) {
-            // timestamp
-            boolean enabled = in.readBoolean();
-            if (enabled) {
-                throw new IllegalArgumentException("_timestamp may not be enabled");
-            }
-            in.readString(); // format
-            in.readOptionalString(); // defaultTimestamp
-            in.readOptionalBoolean(); // ignoreMissing
-        }
         hasParentField = in.readBoolean();
     }
 
