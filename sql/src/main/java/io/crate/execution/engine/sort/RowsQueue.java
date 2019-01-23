@@ -22,21 +22,35 @@
 
 package io.crate.execution.engine.sort;
 
-import org.apache.lucene.util.PriorityQueue;
+import javax.annotation.Nullable;
 
-import java.util.Comparator;
+public interface RowsQueue {
 
-public class RowPriorityQueue<T> extends PriorityQueue<T> {
+    /**
+     * Inserts the specified element into the queue.
+     *
+     * @throws IllegalStateException if the element cannot be added at this
+     *         time due to capacity restrictions
+     * @throws NullPointerException if the specified element is null and
+     *         this queue does not permit null elements
+     * @throws IllegalArgumentException if some property of this element
+     *         prevents it from being added to this queue
+     */
+    void add(Object[] e);
 
-    private final Comparator<T> comparator;
+    /**
+     * Returns and removes the head of the queue.
+     */
+    Object[] pop();
 
-    public RowPriorityQueue(int maxSize, Comparator<T> comparator) {
-        super(maxSize);
-        this.comparator = comparator;
-    }
+    /**
+     * Returns but doesn't remove the head of the queue.
+     */
+    @Nullable
+    Object[] peek();
 
-    @Override
-    public boolean lessThan(T a, T b) {
-        return comparator.compare(a, b) < 0;
-    }
+    /**
+     * Returns the number of elements in the queue.
+     */
+    int size();
 }

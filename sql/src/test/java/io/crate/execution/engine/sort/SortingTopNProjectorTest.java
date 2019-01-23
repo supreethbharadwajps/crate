@@ -84,6 +84,15 @@ public class SortingTopNProjectorTest extends CrateUnitTest {
     }
 
     @Test
+    public void testOrderByWithLimitMuchHigherThanExpectedRowsCount() throws Exception {
+        Projector projector = getProjector(1, 100_000, TopN.NO_OFFSET, FIRST_CELL_ORDERING);
+        consumer.accept(projector.apply(TestingBatchIterators.range(1, 11)), null);
+
+        Bucket rows = consumer.getBucket();
+        assertThat(rows.size(), is(10));
+    }
+
+    @Test
     public void testOrderByWithoutOffset() throws Exception {
         Projector projector = getProjector(2, 10, TopN.NO_OFFSET);
         consumer.accept(projector.apply(TestingBatchIterators.range(1, 11)), null);
